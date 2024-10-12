@@ -13,13 +13,11 @@ import os
 # # Configuración de la base de datos PostgreSQL
 # DATABASE_URL = f'postgresql://{USERNSAME}:{PASSWORD}@localhost:5432/{DBNAME}'
 
-USERNAME = os.getenv('USERNAME')
-PASSWORD = os.getenv('PASSWORD')
-DBNAME = os.getenv('DBNAME')
-HOST = os.getenv('HOST')
 
 # URL de conexión a la base de datos
-DATABASE_URL = f'postgresql://{USERNAME}:{PASSWORD}@{HOST}/{DBNAME}'
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+
 
 # Creación del motor de la base de datos
 engine = create_engine(DATABASE_URL)
