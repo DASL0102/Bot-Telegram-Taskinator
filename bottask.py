@@ -18,21 +18,32 @@ TOKEN = os.getenv('TELEGRAM_TOKEN')
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Función para manejar el comando /start
-def start(update, context):
-    update.message.reply_text(
-                              
-                            'Hola! 👋 Soy tu bot de recordatorios.\n\n'
-                            'Usa los siguientes comandos para interactuar conmigo:\n'
-                            '/add <tarea> @ YYYY-MM-DD - Añadir una nueva tarea\n'
-                            '/list - Listar todas tus tareas\n'
-                            '/delete <id> - Eliminar una tarea por su ID'
-                              
-                              
-                              )
+# Lista de chat_id permitidos
+AUTHORIZED_IDS = [958392218, 123456789]  # Agrega aquí los chat_id autorizados
 
-# Función para manejar el comando /add
+# Función para verificar si el usuario está autorizado
+def is_authorized(update):
+    return update.message.chat_id in AUTHORIZED_IDS
+
+# Función para manejar el comando /start con restricción
+def start(update, context):
+    if not is_authorized(update):
+        update.message.reply_text("🚫 No estás autorizado para usar este bot.")
+        return
+
+    update.message.reply_text(
+        'Hola! 👋 Soy tu bot de recordatorios.\n\n'
+        'Usa los siguientes comandos para interactuar conmigo:\n'
+        '/add <tarea> @ YYYY-MM-DD - Añadir una nueva tarea\n'
+        '/list - Listar todas tus tareas\n'
+        '/delete <id> - Eliminar una tarea por su ID'
+    )
+
+# Función para manejar el comando /add con restricción
 def addTask(update, context):
+    if not is_authorized(update):
+        update.message.reply_text("🚫 No estás autorizado para usar este bot.")
+        return
     try:
         # Obtener el texto completo del mensaje
         full_message = ' '.join(context.args)
@@ -58,9 +69,13 @@ def addTask(update, context):
     except Exception as e:
         update.message.reply_text('Ocurrió un error al programar la notificación.')
         print(e)
-        
+
+# Función para manejar el comando /list con restricción
 def listTasks(update, context):
-    try:    
+    if not is_authorized(update):
+        update.message.reply_text("🚫 No estás autorizado para usar este bot.")
+        return
+    try:
         # Verificar si update.message es None
         if update.message is None:
             logging.error('El objeto update.message es None')
@@ -86,6 +101,25 @@ def listTasks(update, context):
     except Exception as e:    
         logger.error(f'Error al obtener las tareas: {e}')  # Log del error
         update.message.reply_text('Ocurrió un error al obtener las tareas.')
+
+# Función para manejar el comando /delete con restricción
+def remove_task(update, context):
+    if not is_authorized(update):
+        update.message.reply_text("🚫 No estás autorizado para usar este bot.")
+        return
+    try:
+        # Obtener el ID de la tarea
+        task_id = context.args[0]
+        telegram_id = update.message.chat_id
+        # Eliminar la tarea de la base de datos
+        remove_user(task_id, telegram_id)
+        
+        update.message.reply_text('Tarea eliminada exitosamente.')
+    except Exception as e:
+        update.message.reply_text('Ocurrió un error al eliminar la tarea.')
+        print(e)
+
+# El resto del código sigue igual...
 
 # Función para enviar las notificaciones
 def send_notifications(updater):
@@ -117,18 +151,7 @@ def send_notifications(updater):
         else:
             logger.info(f'No hay coincidencia para {telegram_id}. Se esperaba {notify_date}.')
 
-def remove_task(update, context):
-    try:
-        # Obtener el ID de la tarea
-        task_id = context.args[0]
-        telegram_id = update.message.chat_id
-        # # Eliminar la tarea de la base de datos
-        remove_user(task_id, telegram_id)
-        
-        update.message.reply_text('Tarea eliminada exitosamente.')
-    except Exception as e:
-        update.message.reply_text('Ocurrio un error al eliminar la tarea.')
-        print(e)
+
 
 # Mantén el resto del código igual
 
