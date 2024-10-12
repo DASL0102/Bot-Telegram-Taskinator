@@ -1,0 +1,168 @@
+import logging
+from telegram.ext import Updater, CommandHandler
+#from databaseBot import init_db, add_user, get_users, remove_user, get_tasks
+from database2 import init_db, add_user, get_users, remove_user, get_tasks
+import schedule
+import time
+import threading
+from datetime import datetime
+
+import os
+
+TOKEN = os.getenv('TELEGRAM_TOKEN')
+
+# Configuración del token de tu bot de Telegram
+
+
+# Configurar logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Función para manejar el comando /start
+def start(update, context):
+    update.message.reply_text(
+                              
+                            'Hola! 👋 Soy tu bot de recordatorios.\n\n'
+                            'Usa los siguientes comandos para interactuar conmigo:\n'
+                            '/add <tarea> @ YYYY-MM-DD - Añadir una nueva tarea\n'
+                            '/list - Listar todas tus tareas\n'
+                            '/delete <id> - Eliminar una tarea por su ID'
+                              
+                              
+                              )
+
+# Función para manejar el comando /add
+def addTask(update, context):
+    try:
+        # Obtener el texto completo del mensaje
+        full_message = ' '.join(context.args)
+        
+        # Dividir el mensaje en partes
+        task_name, date_str = full_message.rsplit('@', 1)
+
+        # Limpiar el nombre de la tarea
+        task_name = task_name.strip()
+        
+        # Limpiar y obtener la fecha
+        date_str = date_str.strip()
+
+        # Convertir a datetime para validarlo (solo la fecha)
+        notify_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        
+        # Agregar el usuario y la tarea a la base de datos
+        add_user(update.message.chat_id, notify_date, task_name)
+        
+        update.message.reply_text(f'Notificación para "{task_name}" programada para {notify_date}.')
+    except ValueError:
+        update.message.reply_text('Formato incorrecto. Usa: /add tarea @ YYYY-MM-DD')
+    except Exception as e:
+        update.message.reply_text('Ocurrió un error al programar la notificación.')
+        print(e)
+        
+def listTasks(update, context):
+    try:    
+        # Verificar si update.message es None
+        if update.message is None:
+            logging.error('El objeto update.message es None')
+            return
+        
+        logger.info(f'chat_id: {update.message.chat_id}')  # Log de chat_id
+        tasks = get_tasks(update.message.chat_id)
+        
+        # Manejo de la respuesta cuando no hay tareas
+        if not tasks:  # Si la lista de tareas está vacía
+            update.message.reply_text('No tienes tareas programadas.')
+            return
+        
+        message = '📋 **Tus tareas:**\n\n'
+        
+        # Iterar sobre todas las tareas
+        for task in tasks:
+            task_name, date_task, id = task
+            message += f"**Tarea:** {task_name}\n**Fecha de entrega:** {date_task}\n**ID:** {id}\n\n"
+        
+        update.message.reply_text(message, parse_mode='Markdown')
+    
+    except Exception as e:    
+        logger.error(f'Error al obtener las tareas: {e}')  # Log del error
+        update.message.reply_text('Ocurrió un error al obtener las tareas.')
+
+# Función para enviar las notificaciones
+def send_notifications(updater):
+    users = get_users()
+    now = datetime.now().date()  # Obtener solo la fecha actual
+
+    logger.info(f'Hora actual: {now}')  # Log de la fecha actual
+
+    for user in users:
+        telegram_id, notify_date, task, id = user
+        logger.info(f'Comprobando usuario: {telegram_id}, Notificación: {notify_date}, Tarea: {task}')  # Log de usuario y tarea
+
+        # Asegurarse de que notify_date sea de tipo date
+        if isinstance(notify_date, datetime):
+            notify_date = notify_date.date()
+
+        # Calcular la diferencia en días
+        days_difference = (notify_date - now).days
+        
+        if days_difference == 0:
+            updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task}!")
+            remove_user(id, telegram_id)
+        elif days_difference == 1:
+            updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task} mañana!")
+        elif days_difference == 3:
+            updater.bot.send_message(chat_id=telegram_id, text=f"¡Recuerda debes entregar la tarea: {task} en {days_difference} días!")
+        elif days_difference > 8:
+            updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task} en una semana!") 
+        else:
+            logger.info(f'No hay coincidencia para {telegram_id}. Se esperaba {notify_date}.')
+
+def remove_task(update, context):
+    try:
+        # Obtener el ID de la tarea
+        task_id = context.args[0]
+        telegram_id = update.message.chat_id
+        # # Eliminar la tarea de la base de datos
+        remove_user(task_id, telegram_id)
+        
+        update.message.reply_text('Tarea eliminada exitosamente.')
+    except Exception as e:
+        update.message.reply_text('Ocurrio un error al eliminar la tarea.')
+        print(e)
+
+# Mantén el resto del código igual
+
+def notification_scheduler(updater):
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
+
+def main():
+    # Iniciar la base de datos
+    init_db()
+
+    # Iniciar el bot de Telegram
+    updater = Updater(TOKEN, use_context=True)
+
+    # Registrar los comandos
+    dp = updater.dispatcher
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("add", addTask))
+    dp.add_handler(CommandHandler("list", listTasks))
+    dp.add_handler(CommandHandler("delete", remove_task))
+
+    # Iniciar el bot
+    updater.start_polling()
+
+    # Configurar el horario para verificar notificaciones cada día
+    #schedule.every().day.at("00:00").do(lambda: send_notifications(updater))  # Revisa cada día a medianoche
+    schedule.every(30).seconds.do(lambda: send_notifications(updater))
+    #schedule.every(5).minutes.do(lambda: send_notifications(updater))
+    # Ejecutar el scheduler en un hilo separado
+    notification_thread = threading.Thread(target=lambda: notification_scheduler(updater))
+    notification_thread.start()
+
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
