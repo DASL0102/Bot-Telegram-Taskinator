@@ -6,7 +6,6 @@ import schedule
 import time
 import threading
 from datetime import datetime
-
 import os
 import google.generativeai as genai
 import os
@@ -43,7 +42,8 @@ def start(update, context):
         'Usa los siguientes comandos para interactuar conmigo:\n'
         '/add <tarea> @ YYYY-MM-DD - Añadir una nueva tarea\n'
         '/list - Listar todas tus tareas\n'
-        '/delete <id> - Eliminar una tarea por su ID'
+        '/delete <id> - Eliminar una tarea por su ID\n'
+        '/chat <pregunta> - Obtener una respuesta de forma inteligente'
     )
 
 # Función para manejar el comando /add con restricción
@@ -69,8 +69,12 @@ def addTask(update, context):
         
         # Agregar el usuario y la tarea a la base de datos
         add_user(update.message.chat_id, notify_date, task_name)
+        telegram_id = update.message.chat_id
         
         update.message.reply_text(f'Notificación para "{task_name}" programada para {notify_date}.')
+        prompt = f"puedes darme informacion sobre la tarea: {task_name} y podrias darme recursos como links, imagenes o videos"
+        response =process_question(prompt)
+        update.message.reply_text(f"{response}")
     except ValueError:
         update.message.reply_text('Formato incorrecto. Usa: /add tarea @ YYYY-MM-DD')
     except Exception as e:
@@ -148,24 +152,39 @@ def send_notifications(updater):
         days_difference = (notify_date - now).days
         
         if days_difference == 0:
-            prompt = f"puedes darme informacion sobre la tarea: {task} y podrias darme recursos como links, imagenes o videos"
-            response =process_question(prompt)
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task}!")
-            updater.bot.send_message(chat_id=telegram_id, text=f"{response}")
             remove_user(id, telegram_id)
         elif days_difference == 1:
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task} mañana!")
         elif days_difference == 3:
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Recuerda debes entregar la tarea: {task} en {days_difference} días!")
         elif days_difference > 8:
+            prompt = f"puedes darme informacion sobre la tarea: {task} y podrias darme recursos como links, imagenes o videos"
+            response =process_question(prompt)
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task} en una semana!") 
+            updater.bot.send_message(chat_id=telegram_id, text=f"{response}")
         else:
             logger.info(f'No hay coincidencia para {telegram_id}. Se esperaba {notify_date}.')
 
 
 
 
-
+def chat(update, context):
+    if not is_authorized(update):
+        update.message.reply_text("🚫 No estás autorizado para usar este bot.")
+        return
+    try:
+        # Obtener el ID de la tarea
+        question = ' '.join(context.args)
+      
+        # Generar la respuesta del modelo
+        prompt = f"responde de manera inteligente esta pregunta, no inventes cosas si no lo sabes, ademas suministra recursos como links, videos y mas cosas relacionadas con el tema y responde de manera casual pero precisa y un poco cientifica: {question}"
+        response = process_question(prompt)
+        
+        update.message.reply_text(response)
+    except Exception as e:
+        update.message.reply_text('Ocurrió un error al conectar con el modelo.')
+        print(e)
 
 
 def process_question(question):
@@ -203,13 +222,14 @@ def main():
     dp.add_handler(CommandHandler("add", addTask))
     dp.add_handler(CommandHandler("list", listTasks))
     dp.add_handler(CommandHandler("delete", remove_task))
+    dp.add_handler(CommandHandler("chat", chat))
 
     # Iniciar el bot
     updater.start_polling()
 
     # Configurar el horario para verificar notificaciones cada día
-    #schedule.every().day.at("00:00").do(lambda: send_notifications(updater))  # Revisa cada día a medianoche
-    schedule.every(60).seconds.do(lambda: send_notifications(updater))
+    schedule.every().day.at("00:00").do(lambda: send_notifications(updater))  # Revisa cada día a medianoche
+    #schedule.every(60).seconds.do(lambda: send_notifications(updater))
     #schedule.every(5).minutes.do(lambda: send_notifications(updater))
     # Ejecutar el scheduler en un hilo separado
     notification_thread = threading.Thread(target=lambda: notification_scheduler(updater))
