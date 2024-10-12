@@ -4,14 +4,22 @@ from sqlalchemy import BigInteger
 from datetime import datetime
 import os
 
-USERNSAME = os.getenv('DBUSERNAME')
-PASSWORD = os.getenv('DBPASSWORD')
+# USERNSAME = os.getenv('DBUSERNAME')
+# PASSWORD = os.getenv('DBPASSWORD')
+# DBNAME = os.getenv('DBNAME')
+
+# print(USERNSAME, PASSWORD, DBNAME)
+
+# # Configuración de la base de datos PostgreSQL
+# DATABASE_URL = f'postgresql://{USERNSAME}:{PASSWORD}@localhost:5432/{DBNAME}'
+
+USERNAME = os.getenv('USERNAME')
+PASSWORD = os.getenv('PASSWORD')
 DBNAME = os.getenv('DBNAME')
+HOST = os.getenv('HOST')
 
-print(USERNSAME, PASSWORD, DBNAME)
-
-# Configuración de la base de datos PostgreSQL
-DATABASE_URL = f'postgresql://{USERNSAME}:{PASSWORD}@localhost:5432/{DBNAME}'
+# URL de conexión a la base de datos
+DATABASE_URL = f'postgresql://{USERNAME}:{PASSWORD}@{HOST}/{DBNAME}'
 
 # Creación del motor de la base de datos
 engine = create_engine(DATABASE_URL)
