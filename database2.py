@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy import BigInteger
 from datetime import datetime
 import os
 
@@ -23,7 +24,7 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    telegram_id = Column(Integer, nullable=False)
+    telegram_id = Column(BigInteger, nullable=False)
     task = Column(String, nullable=False)
     notify_date = Column(DateTime, nullable=False)
 

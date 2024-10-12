@@ -8,6 +8,13 @@ import threading
 from datetime import datetime
 
 import os
+import google.generativeai as genai
+import os
+
+
+genai.configure(api_key=os.environ["API_KEY"])
+
+model = genai.GenerativeModel("gemini-1.5-flash")
 
 TOKEN = os.getenv('TELEGRAM_TOKEN')
 
@@ -19,7 +26,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # Lista de chat_id permitidos
-AUTHORIZED_IDS = [958392218, 123456789]  # Agrega aquí los chat_id autorizados
+AUTHORIZED_IDS = [958392218, 6231783748]  # Agrega aquí los chat_id autorizados
 
 # Función para verificar si el usuario está autorizado
 def is_authorized(update):
@@ -118,6 +125,7 @@ def remove_task(update, context):
     except Exception as e:
         update.message.reply_text('Ocurrió un error al eliminar la tarea.')
         print(e)
+                
 
 # El resto del código sigue igual...
 
@@ -140,7 +148,10 @@ def send_notifications(updater):
         days_difference = (notify_date - now).days
         
         if days_difference == 0:
+            prompt = f"puedes darme informacion sobre la tarea: {task} y podrias darme recursos como links, imagenes o videos"
+            response =process_question(prompt)
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task}!")
+            updater.bot.send_message(chat_id=telegram_id, text=f"{response}")
             remove_user(id, telegram_id)
         elif days_difference == 1:
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task} mañana!")
@@ -150,6 +161,25 @@ def send_notifications(updater):
             updater.bot.send_message(chat_id=telegram_id, text=f"¡Debes entregar la tarea: {task} en una semana!") 
         else:
             logger.info(f'No hay coincidencia para {telegram_id}. Se esperaba {notify_date}.')
+
+
+
+
+
+
+
+def process_question(question):
+    try:
+        # Generar la respuesta del modelo (simulado)
+        response = model.generate_content(question)
+        texto = response.text
+        
+        
+        return texto
+
+    except Exception as e:
+        print(f"Error procesando la pregunta: {e}")
+        return None
 
 
 
@@ -179,7 +209,7 @@ def main():
 
     # Configurar el horario para verificar notificaciones cada día
     #schedule.every().day.at("00:00").do(lambda: send_notifications(updater))  # Revisa cada día a medianoche
-    schedule.every(30).seconds.do(lambda: send_notifications(updater))
+    schedule.every(60).seconds.do(lambda: send_notifications(updater))
     #schedule.every(5).minutes.do(lambda: send_notifications(updater))
     # Ejecutar el scheduler en un hilo separado
     notification_thread = threading.Thread(target=lambda: notification_scheduler(updater))
